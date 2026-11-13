@@ -1,0 +1,55 @@
+services:
+  pet-db:
+    image: postgres:16-alpine
+    container_name: pet-db-container
+    networks:
+      - pet-network
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=12345
+      - POSTGRES_DB=pet_server
+    volumes:
+      - pet-pg-data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pet_server"]
+      interval: 1s
+      timeout: 30s
+      retries: 5
+      start_period: 30s
+
+
+  pet-server:
+    container_name: pet-server
+    build: 
+      context: ./pet-server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      pet-db:
+        condition: service_healthy
+    networks:
+      - pet-network
+    env_file:
+      - ./pet-server/.env
+    environment:
+      CHOKIDAR_USERPOLLING: "1"
+      CHOKIDAR_INTERVAL: "500"
+    ports:
+      - "5000:5000"
+    working_dir: /app
+    volumes:
+      - ./pet-server:/app
+      - server-node-modules:/app/node_modules
+    command: sh -lc "CI=true npm install && npx prisma generate && npx prisma migrate deploy && npm run dev"
+
+networks:
+  pet-network:
+    driver: bridge
+
+  
+
+volumes:
+  pet-pg-data:
+  server-node-modules:
+  client-node-modules:
